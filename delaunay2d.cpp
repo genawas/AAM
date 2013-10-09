@@ -168,3 +168,49 @@ void paint_voronoi( cv::Mat& img, cv::Subdiv2D& subdiv )
 		circle(img, centers[i], 3, cv::Scalar(), -1, CV_AA, 0);
 	}
 }
+
+void warpTextureFromTriangle(std::vector<cv::Point2f> &srcTri, cv::Mat &originalImage,
+							 std::vector<cv::Point2f> &dstTri, cv::Mat &warp_final)
+{
+	cv::Mat warp_mat(2, 3, CV_32FC1);
+	cv::Mat warp_dst, warp_mask;
+	CvPoint trianglePoints[3];
+	trianglePoints[0] = dstTri[0];
+	trianglePoints[1] = dstTri[1];
+	trianglePoints[2] = dstTri[2];
+	warp_dst = cv::Mat::zeros(warp_final.rows, warp_final.cols,
+		originalImage.type());
+	warp_mask = cv::Mat::zeros(warp_final.rows, warp_final.cols,
+		originalImage.type());
+	/// Get the Affine Transform
+	warp_mat = getAffineTransform(&srcTri[0], &dstTri[0]);
+	/// Apply the Affine Transform to the src image
+	warpAffine(originalImage, warp_dst, warp_mat, warp_dst.size());
+	cvFillConvexPoly(new IplImage(warp_mask), trianglePoints, 3,
+		CV_RGB(255,255,255), CV_AA, 0);
+	//warp_mask.convertTo(warp_mask, CV_64FC1);
+	//imshow("mask",warp_mask);cv::waitKey();
+	warp_dst.copyTo(warp_final, warp_mask);
+}
+
+void wrap_piecewise_nonlin(cv::Mat &img_in, cv::Mat &img_out, std::vector<cv::Vec3i> &F, 
+						   std::vector<cv::Point2f> &cp_src, std::vector<cv::Point2f> &cp_dst)
+{
+	std::vector<cv::Point2f> pt_src(3);
+	std::vector<cv::Point2f> pt_dst(3);
+
+	//img_out = cv::Mat::zeros(img_in.rows, img_in.cols, img_in.type());
+	//cv::Mat temp = img_in.clone();
+	for(size_t i = 0; i < F.size(); ++i)
+	{
+		cv::Vec3i f = F[i];
+
+		for(int j=0;j<3;j++){
+			int ind = f[j];
+			pt_src[j] = cp_src[ind];
+			pt_dst[j] = cp_dst[ind];
+		}
+
+		warpTextureFromTriangle(pt_src, img_in, pt_dst, img_out);
+	}
+}
