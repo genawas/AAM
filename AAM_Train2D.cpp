@@ -13,7 +13,6 @@
 #include "imageProcessing.h"
 //#include "delaunay2d.h"
 #include "levmar.h"
-//#include <lmmin.h>
 
 //#include "warp_triangle_double.h"
 /*
@@ -22,6 +21,24 @@ void AAM_align_data_inverse2D_tire(std::vector<cv::Point2f> &VerticesIn, std::ve
 	scale_shift_vec(VerticesIn, VerticesOut, T.shift, (float)T.scale);
 }
 */
+
+void AAMtrainAllScales(std::string dir_shape, std::string dir_ims, std::vector<AAM_ALL_DATA> &Data, cv::Mat &F, AMM_Model2D_Options &options)
+{
+	Data = std::vector<AAM_ALL_DATA>(options.nscales);
+	AAMTrainingData TrainingData;
+	load_Data(dir_shape, dir_ims, TrainingData);
+	
+	for(int i=0;i<options.nscales;i++){
+		AAM_MakeShapeModel2D_tire(TrainingData, Data[i].S, options);
+		AAM_MakeAppearanceModel2D(TrainingData, Data[i].S, Data[i].A, F, options);
+		
+		Data[i].N = TrainingData.N;
+		Data[i].n = TrainingData.n;
+
+		AAM_CombineShapeAppearance2D_tire(TrainingData, Data[i], F, options);
+		AAM_MakeSearchModel2D_tire(TrainingData, Data[i], F, options);
+	}
+}
 
 template <class T>
 void my_shift_scale(cv::Mat &in, cv::Mat &out, cv::Mat &shift, double scale= 1.0)
@@ -141,8 +158,7 @@ void AAM_align_data2D_tire(std::vector<cv::Point2f> &Vertices,std::vector<cv::Po
 }
 */
 
-void AAM_MakeShapeModel2D_tire(AAMTrainingData &TrainingData, AAMShape &ShapeModel, 
-							   AAMTexture &Text, AMM_Model2D_Options &options)
+void AAM_MakeShapeModel2D_tire(AAMTrainingData &TrainingData, AAMShape &ShapeModel, AMM_Model2D_Options &options)
 {
 	// Number of datasets
 	int s=TrainingData.N;
@@ -258,7 +274,7 @@ void AAM_MakeShapeModel2D_tire(AAMTrainingData &TrainingData, AAMShape &ShapeMod
 	minVal = minVal*-1.0;
 #undef max
 	int ts = ceil(std::max(maxVal, minVal)*2.0*(double)options.texturesize);
-	Text.textureSize = cv::Size(ts,ts);
+	ShapeModel.textureSize = cv::Size(ts,ts);
 
 	return;
 	//writeMat(cv::Mat(eig_cumsum), "ei.mat", "ei"); 
@@ -272,14 +288,16 @@ void AAM_MakeShapeModel2D_tire(AAMTrainingData &TrainingData, AAMShape &ShapeMod
 	*/
 }
 
-void drawObject(cv::Size &imsize, cv::Mat &mask, std::vector<cv::Point2f> &base_points)
+void drawObject(cv::Size &imsize, cv::Mat &mask, cv::Mat &BP)
 {
+	//std::vector<cv::Point2d> base_points(BP.rows);
 	cv::Mat temp = cv::Mat::zeros(imsize, CV_8UC1);
 	//cv::Mat temp1;// = cv::Mat::zeros(imsize, CV_8UC1);
 	std::vector<std::vector<cv::Point> > tC(1);
-	int n = base_points.size();
+	int n = BP.rows;
+
 	for(int i=0;i<n;i++){
-		tC[0].push_back(cv::Point(base_points[i]));
+		tC[0].push_back(cv::Point(BP.at<double>(i,0),BP.at<double>(i,1)));
 	}
 	cv::drawContours(temp, tC, 0, cv::Scalar(255), -1);
 	cv::drawContours(temp, tC, 0, cv::Scalar(0), 1);
@@ -375,6 +393,7 @@ void AAM_Appearance2Vector2D(cv::Mat &in, cv::Size &ts, int k, std::vector<cv::P
 void AAM_Appearance2Vector2D(cv::Mat &in, cv::Size &ts, int k, cv::Mat &source, cv::Mat &target, 
 							cv::Mat &F, cv::Mat &greyvector, cv::Mat &mask, bool draw_flag=false)
 {
+	//draw_flag = true;
 	cv::Mat out=cv::Mat::zeros(ts, CV_64FC1);
 	int sizeIout[2] = {out.rows, out.cols};
 	//out = out.t();
@@ -389,7 +408,7 @@ void AAM_Appearance2Vector2D(cv::Mat &in, cv::Size &ts, int k, cv::Mat &source, 
 
 	double *XY = (double*)source.data; 
 	int sizeXY[2] = {source.rows, 2};
-
+	//writeMat(source, "xy.mat", "xy");
 	double *UV = (double*)target.data; 
 	int sizeUV[2]= {target.rows, 2}; 
 
@@ -397,6 +416,7 @@ void AAM_Appearance2Vector2D(cv::Mat &in, cv::Size &ts, int k, cv::Mat &source, 
 	int sizeTRI[2] = {F.rows, 3}; 
 
 	double *TRI =(double*)F.data;
+	//writeMat(target, "uv.mat", "uv");
 	//writeMat(F, "gr.mat", "gr");
 	//writeMat(uv, "in.mat", "in");
 	//writeMat(uv, "a.mat", "a", false);
@@ -432,8 +452,7 @@ void AAM_NormalizeAppearance2D(cv::Mat &gim)
 	}
 }
 
-void AAM_MakeAppearanceModel2D(AAMTrainingData &TrainingData, AAMTexture &Text, AAMShape &ShapeModel, 
-							   AAMAppearance &AppearanceData, AMM_Model2D_Options &options)
+void AAM_MakeAppearanceModel2D(AAMTrainingData &TrainingData, AAMShape &ShapeModel, AAMAppearance &AppearanceData, cv::Mat &F, AMM_Model2D_Options &options)
 {
 	// Coordinates of mean contour
 	/*
@@ -469,8 +488,8 @@ void AAM_MakeAppearanceModel2D(AAMTrainingData &TrainingData, AAMTexture &Text, 
 	cv::minMaxLoc(base_points.col(1), &minY, &maxY);
 	//MinMaxContour(base_points, minX, maxX,  minY, maxY);
 	
-	base_points.col(0) = base_points.col(0)*((double)Text.textureSize.width-1)/ maxX;
-	base_points.col(1) = base_points.col(1)*((double)Text.textureSize.height-1)/maxY;
+	base_points.col(0) = base_points.col(0)*((double)ShapeModel.textureSize.width-1)/ maxX;
+	base_points.col(1) = base_points.col(1)*((double)ShapeModel.textureSize.height-1)/maxY;
 	/*
 	for(int i=0;i<TrainingData.n;i++){
 		base_points[i].x /= maxX;
@@ -483,12 +502,10 @@ void AAM_MakeAppearanceModel2D(AAMTrainingData &TrainingData, AAMTexture &Text, 
 
 	//writeMat(base_points, "cp.mat", "cp");
 	//writeMat(ShapeModel.data_mean, "cp.mat", "cp"); 
-
+	//mask.convertTo(mask, CV_8UC1);
+	drawObject(ShapeModel.textureSize, AppearanceData.ObjectPixels, base_points);
 	cv::Mat mask = AppearanceData.ObjectPixels;
-	mask.convertTo(mask, CV_8UC1);
-	//drawObject(ShapeModel.textureSize, mask, base_points);
 	//writeMat(Text.F, "m.mat","m");
-
 	int k=cv::countNonZero(mask);
 
 	cv::Mat grey(k, TrainingData.N, CV_64FC1);
@@ -496,7 +513,7 @@ void AAM_MakeAppearanceModel2D(AAMTrainingData &TrainingData, AAMTexture &Text, 
 		std::cout << i << std::endl;
 		cv::Mat greyvector;
 
-		AAM_Appearance2Vector2D(TrainingData.Texture[i], Text.textureSize, k, TrainingData.Shape[i], base_points, Text.F, greyvector, mask);
+		AAM_Appearance2Vector2D(TrainingData.Texture[i], ShapeModel.textureSize, k, TrainingData.Shape[i], base_points, F, greyvector, mask);
 		//writeMat(greyvector, "ge.mat","ge");
 		cv::Mat temp = grey(cv::Range::all(), cv::Range(i,i+1));
 		greyvector.convertTo(temp, CV_64FC1);
@@ -552,7 +569,7 @@ void transform2pos(cv::Mat &b_mean,  cv::Mat &Evectors, cv::Mat &c, AAMTform &tf
 }
 
 void AAM_Weights2D_tire(AAMTrainingData &TrainingData, AAMShape &ShapeData, AAMAppearance &AppearanceData, 
-						AAMTexture &Text, cv::Mat &Ws, AMM_Model2D_Options &options)
+						cv::Mat &Ws, cv::Mat &F, AMM_Model2D_Options &options)
 {
 	int N = TrainingData.N;
 	int n = TrainingData.n;
@@ -592,8 +609,8 @@ void AAM_Weights2D_tire(AAMTrainingData &TrainingData, AAMShape &ShapeData, AAMA
 		transform2pos(ShapeData.data_mean, ShapeData.Evectors, b, tform, pos_normal, n);
 
 		cv::Mat g_normal;
-		AAM_Appearance2Vector2D(TrainingData.Texture[i], Text.textureSize, AppearanceData.k, 
-			pos_normal, AppearanceData.base_points, Text.F, g_normal, AppearanceData.ObjectPixels, false);
+		AAM_Appearance2Vector2D(TrainingData.Texture[i], ShapeData.textureSize, AppearanceData.k, 
+			pos_normal, AppearanceData.base_points, F, g_normal, AppearanceData.ObjectPixels, false);
 		g_normal.convertTo(g_normal, CV_64FC1);
 		AAM_NormalizeAppearance2D(g_normal);
 
@@ -613,8 +630,8 @@ void AAM_Weights2D_tire(AAMTrainingData &TrainingData, AAMShape &ShapeData, AAMA
 				transform2pos(ShapeData.data_mean, ShapeData.Evectors, b_offset, tform, pos_offset, n);
 
 				cv::Mat g_offset;
-				AAM_Appearance2Vector2D(TrainingData.Texture[i], Text.textureSize, AppearanceData.k, 
-					pos_offset, AppearanceData.base_points, Text.F, g_offset, AppearanceData.ObjectPixels, false);
+				AAM_Appearance2Vector2D(TrainingData.Texture[i], ShapeData.textureSize, AppearanceData.k, 
+					pos_offset, AppearanceData.base_points, F, g_offset, AppearanceData.ObjectPixels, false);
 				g_offset.convertTo(g_offset, CV_64FC1);
 				AAM_NormalizeAppearance2D(g_offset);
 
@@ -640,8 +657,7 @@ void AAM_Weights2D_tire(AAMTrainingData &TrainingData, AAMShape &ShapeData, AAMA
 	//writeMat(Ws, "w.mat", "w", false);
 }
 
-void AAM_CombineShapeAppearance2D_tire(AAMTrainingData &TrainingData, AAM_ALL_DATA &Data, 
-									   AAMTexture &Text, AMM_Model2D_Options &options)
+void AAM_CombineShapeAppearance2D_tire(AAMTrainingData &TrainingData, AAM_ALL_DATA &Data, cv::Mat &F, AMM_Model2D_Options &options)
 {
 	//This functions combines the shape and appearance of the objects, by
 	//adding the weighted vector describing shape and appearance, followed by
@@ -656,7 +672,7 @@ void AAM_CombineShapeAppearance2D_tire(AAMTrainingData &TrainingData, AAM_ALL_DA
 	AAMShapeAppearance ShapeAppearanceData = Data.SA;
 
 	cv::Mat Ws;
-	AAM_Weights2D_tire(TrainingData, ShapeData, AppearanceData, Text, Ws, options);
+	AAM_Weights2D_tire(TrainingData, ShapeData, AppearanceData, Ws, F, options);
 
 	// Combine the Contour and Appearance data
 	cv::Mat b=cv::Mat::zeros(ShapeData.Evectors.cols+AppearanceData.Evectors.cols, TrainingData.N, CV_64FC1);
@@ -691,7 +707,7 @@ void AAM_CombineShapeAppearance2D_tire(AAMTrainingData &TrainingData, AAM_ALL_DA
 	Data.SA.Ws=Ws;
 }
 
-void RealAndModel(AAMTrainingData &TrainingData, AAM_ALL_DATA &Data, AAMTexture &Text, AMM_Model2D_Options &options, 
+void RealAndModel(AAMTrainingData &TrainingData, AAM_ALL_DATA &Data, cv::Mat &F, AMM_Model2D_Options &options, 
 				  int i, cv::Mat &pos, cv::Mat &g_offset, cv::Mat &g)
 {
 	int n = TrainingData.n;
@@ -700,8 +716,8 @@ void RealAndModel(AAMTrainingData &TrainingData, AAM_ALL_DATA &Data, AAMTexture 
 	AAMShapeAppearance ShapeAppearanceData = Data.SA;
 
 	//Sample the image intensities in the training set
-	AAM_Appearance2Vector2D(TrainingData.Texture[i], Text.textureSize, AppearanceData.k, 
-		pos, AppearanceData.base_points, Text.F, g_offset,  AppearanceData.ObjectPixels);
+	AAM_Appearance2Vector2D(TrainingData.Texture[i], ShapeData.textureSize, AppearanceData.k, 
+		pos, AppearanceData.base_points, F, g_offset,  AppearanceData.ObjectPixels);
 	g_offset.convertTo(g_offset, CV_64FC1);
 	//writeMat(g_offset, "go.mat", "go", false);
 	AAM_NormalizeAppearance2D(g_offset);
@@ -760,8 +776,7 @@ void transformShapeAppearance2Shape(AAMTform &tform, cv::Mat &c_offset, cv::Mat 
 
 }
 
-void AAM_MakeSearchModel2D_tire(AAMTrainingData &TrainingData, AAM_ALL_DATA &Data, 
-								AAMTexture &Text, AMM_Model2D_Options &options)
+void AAM_MakeSearchModel2D_tire(AAMTrainingData &TrainingData, AAM_ALL_DATA &Data, cv::Mat &F, AMM_Model2D_Options &options)
 {
 	AAMShape ShapeData = Data.S;
 	AAMAppearance AppearanceData = Data.A; 
@@ -810,7 +825,7 @@ void AAM_MakeSearchModel2D_tire(AAMTrainingData &TrainingData, AAM_ALL_DATA &Dat
 					//are then used to get model intensities
 					cv::Mat g_offset, g;
 					//writeMat(pos, "p.mat", "p", false);
-					RealAndModel(TrainingData, Data, Text, options, i, pos, g_offset, g);
+					RealAndModel(TrainingData, Data, F, options, i, pos, g_offset, g);
 					//writeMat(g_offset, "g1.mat", "g1", false);
 
 					// A weighted sum of difference between model an real
@@ -880,7 +895,7 @@ void AAM_MakeSearchModel2D_tire(AAMTrainingData &TrainingData, AAM_ALL_DATA &Dat
 					// intensities to get ShapeAppearance parameters, which
 					// are then used to get model intensities
 					cv::Mat g_offset, g;
-					RealAndModel(TrainingData, Data, Text, options, i, pos, g_offset, g);
+					RealAndModel(TrainingData, Data, F, options, i, pos, g_offset, g);
 
 					//A weighted sum of difference between model an real
 					//intensities gives the "intensity / offset" ratio
@@ -979,26 +994,35 @@ void cost_lmmin(double *par, cv::Mat &b_mean, cv::Mat &x_mean,
 	return;
  }
 
-void inter_iteration(cv::Mat &Itest, cv::Mat &pos, AAMShape &ShapeData, AAMTexture &Text, AAMAppearance &AppearanceData, 
-				   AAMShapeAppearance &ShapeAppearanceData, AAMTform &tform, cv::Mat &R)
+ struct inter_data{
+	 double Eold, E, w;
+	 cv::Mat c_old, c;
+	 AAMTform tform_old;
+ };
+
+void inter_iteration(cv::Mat &Itest, cv::Mat &pos, AAMShape &ShapeData, AAMAppearance &AppearanceData, 
+				   AAMShapeAppearance &ShapeAppearanceData, cv::Mat &F, AAMTform &tform, cv::Mat &R, inter_data &data, AMM_Model2D_Options &options)
 {
 
-	double Eold = 10, w;
-	cv::Mat c_old, c;
-	AAMTform tform_old;
+	//double Eold = 10, w, E;
+	//cv::Mat c_old, c;
+	//AAMTform tform_old;
 
+	int n = ShapeData.MeanVertices.rows;
 	// Go from ShapeAppearance Parameters to aligned shape coordinates
-	cv::Mat b = ShapeAppearanceData.b_mean + ShapeAppearanceData.Evectors*C;
+	cv::Mat b = ShapeAppearanceData.b_mean + ShapeAppearanceData.Evectors*data.c;
 	cv::Mat b1 = b(cv::Range(0,ShapeAppearanceData.Ws.rows), cv::Range::all());
 	b1 = ShapeAppearanceData.Ws.inv(cv::DECOMP_SVD)*b1;
 	cv::Mat x = ShapeData.data_mean + ShapeData.Evectors*b1;
 
+	x(cv::Range(n,2*n),cv::Range::all()).copyTo(pos.col(0));
+	x(cv::Range(0,n),cv::Range::all()).copyTo(pos.col(1));
 	AAM_align_data_inverse2D_tire(pos, pos, tform);
 
 	// Sample the intensities
 	cv::Mat g;
-	AAM_Appearance2Vector2D(Itest, Text.textureSize, AppearanceData.k, 
-		pos, AppearanceData.base_points, Text.F, g,  AppearanceData.ObjectPixels);
+	AAM_Appearance2Vector2D(Itest, ShapeData.textureSize, AppearanceData.k, 
+		pos, AppearanceData.base_points, F, g, AppearanceData.ObjectPixels);
 	g.convertTo(g, CV_64FC1);
 	//writeMat(g_offset, "go.mat", "go", false);
 	AAM_NormalizeAppearance2D(g);
@@ -1032,25 +1056,28 @@ void inter_iteration(cv::Mat &Itest, cv::Mat &pos, AAMShape &ShapeData, AAMTextu
 	cv::Mat err;
 	cv::reduce(subG, err, 0, CV_REDUCE_SUM);
 
-	double E = err.at<double>(0,0);
+	data.E = err.at<double>(0,0);
     
 	// Go back to the old location of the previous itteration, if the
     // error was lower.
-	if(E>Eold){
+	if(data.E>data.Eold){
 		// Not always go back if the error becomes higher, sometimes
 		// stay on the higher error (like in simulated annealing)
 		// Try a smaller stepsize
-		w=w*0.9;
-		c=c_old; tform=tform_old;
+		data.w=data.w*0.9;
+		data.c=data.c_old.clone(); 
+		tform.shift=data.tform_old.shift.clone();
+		tform.scale=data.tform_old.scale;
 	}
     else{
-		w=w*1.1;
-		Eold=E;
+		data.w=data.w*1.1;
+		data.Eold=data.E;
 	}
 
 	//Store model /pose parameters for next itteration
-	c_old=c;
-	tform_old=tform;
+	data.c_old=data.c.clone();
+	data.tform_old.shift=tform.shift.clone();
+	data.tform_old.scale=tform.scale;
 
 	// Calculate the needed model parameter update using the 
 	// search model matrix
@@ -1059,17 +1086,26 @@ void inter_iteration(cv::Mat &Itest, cv::Mat &pos, AAMShape &ShapeData, AAMTextu
 	// Update the ShapeApppearance Parameters
 	cv::Mat c_difft = c_diff(cv::Range(0, c_diff.rows-4), cv::Range::all());
 	cv::Mat sa;cv::sqrt(ShapeAppearanceData.Evalues, sa);
-	cv::multiply(c_difft, sa*w, c_difft);
-	c=c+c_difft;
+	cv::multiply(c_difft, sa*data.w, c_difft);
+	data.c=data.c+c_difft;
 	
 	// Update the Pose parameters
-	tform.shift.at<double>(0,0) += c_diff.at<double>(c_diff.rows-3,0)*w;
-	tform.shift.at<double>(0,1) += c_diff.at<double>(c_diff.rows-4,0)*w; 
+	tform.shift.at<double>(0,0) += c_diff.at<double>(c_diff.rows-3,0)*data.w;
+	tform.shift.at<double>(0,1) += c_diff.at<double>(c_diff.rows-4,0)*data.w; 
+
+	// Stay within 3 (m) standard deviations
+	cv::Mat temp;cv::sqrt(ShapeAppearanceData.Evalues,temp);
+	cv::Mat maxcU=options.m*temp;
+	for(int i=0;i<maxcU.rows;i++){
+		double *ptrM = maxcU.ptr<double>(i);
+		double *ptrC = data.c.ptr<double>(i);
+		ptrC[0] = std::max(min(ptrC[0], ptrM[0]), -1.0*ptrM[0]);
+	}
 }
 
 
-void one_iteration(cv::Mat &im, cv::Mat &pos, AAMShape &ShapeData, AAMTexture &Text, AAMAppearance &AppearanceData, 
-				   AAMShapeAppearance &ShapeAppearanceData, int num, double scale, AAMTform &tform, AMM_Model2D_Options &options)
+void one_iteration(cv::Mat &im, cv::Mat &pos, AAMShape &ShapeData, AAMAppearance &AppearanceData, AAMShapeAppearance &ShapeAppearanceData, 
+				   cv::Mat &F, int num, double scale, AAMTform &tform, cv::Mat &R, inter_data &dataI, AMM_Model2D_Options &options)
 {
 
 	//AAMTrainingData TrainingData=Data[scale].T;
@@ -1097,8 +1133,8 @@ void one_iteration(cv::Mat &im, cv::Mat &pos, AAMShape &ShapeData, AAMTexture &T
 
 	// Sample the image intensities
 	cv::Mat g;
-	AAM_Appearance2Vector2D(Itest, Text.textureSize, AppearanceData.k, 
-		pos, AppearanceData.base_points, Text.F, g,  AppearanceData.ObjectPixels);
+	AAM_Appearance2Vector2D(Itest, ShapeData.textureSize, AppearanceData.k, 
+		pos, AppearanceData.base_points, F, g,  AppearanceData.ObjectPixels);
 	g.convertTo(g, CV_64FC1);
 	AAM_NormalizeAppearance2D(g);
 	//writeMat(g, "go.mat", "go", false);
@@ -1175,25 +1211,24 @@ void one_iteration(cv::Mat &im, cv::Mat &pos, AAMShape &ShapeData, AAMTexture &T
 	//	printf("%g ", info[ii]);
 	//printf("\n");
 
-	cv::Mat C(n_par, 1, CV_64FC1, par); //optimized constants
-	cv::Mat c_old = C.clone(); 
-	AAMTform tform_old=tform; 
-	//Eold=inf; 
+	dataI.c = cv::Mat(n_par, 1, CV_64FC1, par); //optimized constants
+	dataI.c_old = dataI.c.clone();  
+	dataI.Eold=numeric_limits<double>::infinity(); 
+	dataI.E=0;
 	//writeMat(C, "cc.mat", "cc", false);
 	//writeMat(lm_data.x, "xx.mat", "xx", false);
 
-	// Starting step size
-	int w=1;
 	// Search Itterations
+	dataI.w=1;// Starting step size
+	dataI.tform_old = tform;
 	for(int i=0;i<options.nsearch;i++){
-
-		// Stay within 3 (m) standard deviations               
-		cv::Mat maxc=options.m*sqrt(ShapeAppearanceData.Evalues);
-		c=max(min(c,maxc),- maxc);
+		inter_iteration(Itest, pos, ShapeData, AppearanceData, ShapeAppearanceData, F, tform, R, dataI, options);
 	}
+
+	pos=(pos-0.5)/scaling+0.5; 
 }
 
-void ApplyModel2D(std::vector<AAM_ALL_DATA> &Data, AAMTexture &Text, cv::Mat &im, AAMTform &tformLarge, AMM_Model2D_Options &options)
+void ApplyModel2D(std::vector<AAM_ALL_DATA> &Data, cv::Mat &F, cv::Mat &im, AAMTform &tformLarge, cv::Mat &pos, AMM_Model2D_Options &options)
 {
 	// We start at the coarse scale
 	int scale=0; 
@@ -1220,15 +1255,18 @@ void ApplyModel2D(std::vector<AAM_ALL_DATA> &Data, AAMTexture &Text, cv::Mat &im
 	//writeMat(x, "x1.mat", "x1", false);
 	// The real image coordinates
 
-	cv::Mat pos(n, 2, CV_64FC1);
+	pos=cv::Mat (n, 2, CV_64FC1);
 	x(cv::Range(n,2*n),cv::Range::all()).copyTo(pos.col(0));
 	x(cv::Range(0,n),cv::Range::all()).copyTo(pos.col(1));
 	
 	AAM_align_data_inverse2D_tire(pos, pos, tform);
 	//cout << tform.shift << endl;
-	//writeMat(pos, "p.mat", "p", false);
+	//writeMat(pos, "p1.mat", "p1", false);
 
 	// Loop through the 4 image size scales
+	inter_data dataI;
+	//dataI.E = 0;
+	//dataI.Eold = 0;
 	for (int scale=options.nscales; scale>0;scale--)
 	{
 		//Get the PCA model for this scale
@@ -1236,9 +1274,26 @@ void ApplyModel2D(std::vector<AAM_ALL_DATA> &Data, AAMTexture &Text, cv::Mat &im
 		ShapeAppearanceData=Data[scale-1].SA;
 		ShapeData=Data[scale-1].S;
 		AppearanceData=Data[scale-1].A;
-
-		one_iteration(im, pos, ShapeData, Text, AppearanceData, ShapeAppearanceData, n, scale, tform, options);
-
+		one_iteration(im, pos, ShapeData, AppearanceData, ShapeAppearanceData, F, n, scale, tform, R, dataI, options);
 	}
 	
+	if(dataI.E>dataI.Eold){
+		dataI.c=dataI.c_old.clone(); 
+		tform.shift=dataI.tform_old.shift.clone();
+		tform.scale=dataI.tform_old.scale;
+	}  
+
+	// Go from ShapeAppearance Parameters to Shape and Appearance Parameters
+	b = ShapeAppearanceData.b_mean + ShapeAppearanceData.Evectors*dataI.c;
+	b1= b(cv::Range(0, ShapeAppearanceData.Ws.rows), cv::Range::all()).clone();
+	b1= ShapeAppearanceData.Ws.inv(cv::DECOMP_SVD)*b1;
+	cv::Mat b2 = b(cv::Range(ShapeAppearanceData.Ws.rows, b.rows), cv::Range::all()).clone();
+	
+	cv::Mat g_model = AppearanceData.g_mean + AppearanceData.Evectors*b2;
+	x = ShapeData.data_mean + ShapeData.Evectors*b1;
+
+	// From aligned coordinates to real image coordinates
+	x(cv::Range(n,2*n),cv::Range::all()).copyTo(pos.col(0));
+	x(cv::Range(0,n),cv::Range::all()).copyTo(pos.col(1));
+	AAM_align_data_inverse2D_tire(pos, pos, tform);
 }

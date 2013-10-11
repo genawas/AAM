@@ -32,8 +32,8 @@ void loadAAMData(AAM_ALL_DATA &Data, std::string filename);
 
 void saveAAMData(AAM_ALL_DATA &Data, std::string filename);
 
-void saveAAMTextue(AAMTexture &Text, std::string filename);
+void AAMsaveAllData(std::string dir, std::vector<AAM_ALL_DATA> &Data);
 
-void loadAAMTexture(AAMTexture &Text, std::string filename);
+void AAMloadAllData(std::string dir, std::vector<AAM_ALL_DATA> &Data);
 
 #endif

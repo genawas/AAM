@@ -80,32 +80,25 @@ void evaluate_nonlin1(
     f[1] = p[1] - p[0]*p[0];          /* standard parabola  y=x^2 */
 }
 
+/*
 int test_lmfit()
 {
-    int n = 2;   /* dimension of the problem */
-    double p[2]; /* parameter vector p=(x,y) */
+    int n = 2;   // dimension of the problem 
+    double p[2]; // parameter vector p=(x,y) 
 
-    /* auxiliary parameters */
+    // auxiliary parameters 
     lm_control_struct control = lm_control_double;
     lm_status_struct  status;
     control.verbosity  = 31;
 
-    /* get start values from command line */
-	/*
-    if( argc!=3 ){
-        fprintf( stderr, "usage: nonlin1 x_start y_start\n" );
-        exit(-1);
-    }
-    p[0] = atof( argv[1] );
-    p[1] = atof( argv[2] );
-	*/
+    // get start values from command line
 	p[0] = 1;
     p[1] = 1;
-    /* the minimization */
+    // the minimization 
     printf( "Minimization:\n" );
     lmmin( n, p, n, NULL, evaluate_nonlin1, &control, &status );
 
-    /* print results */
+    // print results
     printf( "\n" );
     printf( "lmmin status after %d function evaluations:\n  %s\n",
             status.nfev, lm_infmsg[status.outcome] );
@@ -116,7 +109,7 @@ int test_lmfit()
     printf("  y = %19.11f\n", p[1]);
     printf("  d = %19.11f => ", status.fnorm);
 
-    /* convergence of lmfit is not enough to ensure validity of the solution */
+    // convergence of lmfit is not enough to ensure validity of the solution
     if( status.fnorm >= control.ftol )
         printf( "not a valid solution, try other starting values\n" );
     else
@@ -125,7 +118,7 @@ int test_lmfit()
 
     return 0;
 }
-
+*/
 
 void main(void)
 {
@@ -136,9 +129,9 @@ void main(void)
 
 	AMM_Model2D_Options options;
 	options.set_default();
-	options.nscales = 1;
+	options.nscales = 4;
 
-	if(/*true*/ false){
+	if(false){
 
 		//cv::Mat A = (cv::Mat_ <double> (5, 1) << 1, 2, 3, 4, 5);
 		//cv::Mat B = (cv::Mat_ <double> (5, 1) << 5, 4, 3, 2, 1);
@@ -146,13 +139,20 @@ void main(void)
 		//concat_mat(A, B, C, 1);
 		//std::cout << C << std::endl;
 
-		cv::Mat Z = (cv::Mat_ <double> (5, 5) <<  17, 24, 1, 8, 15,
-			23, 5, 7, 14, 16, 4, 6, 13, 20, 22, 10, 12, 19, 21, 3, 11, 18, 25, 2, 9);
+		//cv::Mat Z = (cv::Mat_ <double> (5, 5) <<  17, 24, 1, 8, 15,
+		//	23, 5, 7, 14, 16, 4, 6, 13, 20, 22, 10, 12, 19, 21, 3, 11, 18, 25, 2, 9);
 		//AAM_NormalizeAppearance2D(Z);
 		//std::cout << Z << std::endl;
 		std::string dir_shape = "C:/Users/genawas/Dropbox/Ims4test/Shapesc";
 		std::string dir_ims = "C:/Users/genawas/Dropbox/Ims4test/Imsc";
 		
+		std::vector<AAM_ALL_DATA> Data;
+		cv::Mat F;
+		load_triangulation(dir + "/faces.yml", F);
+		AAMtrainAllScales(dir_shape, dir_ims, Data, F, options);
+		AAMsaveAllData(dir, Data);
+
+		/*
 		AAMTrainingData TrainingData;
 		load_Data(dir_shape, dir_ims, TrainingData);
 
@@ -188,20 +188,24 @@ void main(void)
 		AAM_MakeSearchModel2D_tire(TrainingData, Data, Text, options);
 		saveAAMData(Data, dir + "/data.yml");
 		saveAAMTextue(Text, dir + "/text.yml");
+		*/
 	}
 
 	else{
-		AAM_ALL_DATA Data;
-		loadAAMData(Data, dir + "/data.yml");
-		AAMTexture Text;
-		loadAAMTexture(Text, dir + "/text.yml");
+		
+		std::vector<AAM_ALL_DATA> Data(options.nscales); 
 
-		std::vector<AAM_ALL_DATA> datav(1, Data); 
+		cv::Mat F;
+		load_triangulation(dir + "/faces.yml", F);
+		AAMloadAllData(dir, Data);
+		
 		cv::Mat im=cv::imread("C:/Users/genawas/Dropbox/ASM_data/tire_test1.tif", CV_LOAD_IMAGE_GRAYSCALE);
 		AAMTform tformLarge;
 		tformLarge.shift=(cv::Mat_ <double> (1,2) << -439.0046, -476.5241);
 		tformLarge.scale=0.7803;
-		ApplyModel2D(datav, Text, im, tformLarge, options);
+		cv::Mat pos;
+		ApplyModel2D(Data, F, im, tformLarge, pos, options);
+		writeMat(pos, "p.mat", "p", false);
 	}
 	//cv::Mat Z = (cv::Mat_ <double> (5, 5) <<  17, 24, 1, 8, 15,
 	//	23, 5, 7, 14, 16, 4, 6, 13, 20, 22, 10, 12, 19, 21, 3, 11, 18, 25, 2, 9);

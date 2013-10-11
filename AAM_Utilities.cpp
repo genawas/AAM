@@ -82,7 +82,7 @@ void load_Data(std::string dir_shape, std::string dir_ims, AAMTrainingData &Trai
 
 
 	//int n = shape_file_path_list.size();
-	int n = 5;
+	int n = 30;
 	TrainingData.initialize(n);
 	for(int i = 0;i<n;i++){
 		TrainingData.Texture[i]=cv::imread(ims_file_path_list[i], CV_LOAD_IMAGE_GRAYSCALE);
@@ -105,8 +105,7 @@ void vec_average(std::vector<cv::Point2f> &Vertices, cv::Point2f &offestsv)
 	offestsv.y = offestsv.y/(float)n;
 }
 
-void shift_scale_vec(std::vector<cv::Point2f> &VerticesIn, std::vector<cv::Point2f> &VerticesOut, 
-					 cv::Point2f &shift, float scale)
+void shift_scale_vec(std::vector<cv::Point2f> &VerticesIn, std::vector<cv::Point2f> &VerticesOut, cv::Point2f &shift, float scale)
 
 {
 	int n = VerticesIn.size();
@@ -119,8 +118,7 @@ void shift_scale_vec(std::vector<cv::Point2f> &VerticesIn, std::vector<cv::Point
 
 }
 
-void scale_shift_vec(std::vector<cv::Point2f> &VerticesIn, 
-					 std::vector<cv::Point2f> &VerticesOut, cv::Point2f &shift, float scale)
+void scale_shift_vec(std::vector<cv::Point2f> &VerticesIn, std::vector<cv::Point2f> &VerticesOut, cv::Point2f &shift, float scale)
 
 {
 	int n = VerticesIn.size();
@@ -216,7 +214,6 @@ void pca_eigenvectors_svd(cv::Mat &A, cv::Mat &eigenvalues, cv::Mat &eigenvector
 	}
 
 	//writeMat(eigenvalues, "ei.mat", "ei");
-
 }
 
 void pca_eigenvectors_dir(cv::Mat &A, cv::Mat &eigenvalues, cv::Mat &eigenvectors, cv::Mat &psi)
@@ -348,6 +345,8 @@ void saveAAMData(AAM_ALL_DATA &Data, std::string filename)
 	f << "Smean" << Data.S.data_mean;
 	f << "Sdata" << Data.S.data;
 	f << "Sver" << Data.S.MeanVertices;
+	f << "rows" << Data.S.textureSize.height;
+	f << "cols" << Data.S.textureSize.width;
 
 	//Appearance
 	f << "Aevec" << Data.A.Evectors;
@@ -385,6 +384,8 @@ void loadAAMData(AAM_ALL_DATA &Data, std::string filename)
 	f["Smean"] >> Data.S.data_mean;
 	f["Sdata"] >> Data.S.data;
 	f["Sver"] >> Data.S.MeanVertices;
+	f["rows"] >> Data.S.textureSize.height;
+	f["cols"] >> Data.S.textureSize.width;
 
 	//Appearance
 	f["Aevec"] >> Data.A.Evectors;
@@ -408,28 +409,31 @@ void loadAAMData(AAM_ALL_DATA &Data, std::string filename)
 	f["N"] >> Data.N;
 }
 
-void saveAAMTextue(AAMTexture &Text, std::string filename)
+std::string num2str(int number)
 {
-	// Eigen Vectors and Eigen Values
-	cv::Mat MeanVertices;
-	cv::FileStorage f;
-	f.open(filename, cv::FileStorage::WRITE);
-	
-	//Texture
-	f << "F" << Text.F;
-	f << "rows" << Text.textureSize.height;
-	f << "cols" << Text.textureSize.width;
+   std::stringstream ss;//create a stringstream
+   ss << number;//add number to the stream
+   return ss.str();//return a string with the contents of the stream
 }
 
-void loadAAMTexture(AAMTexture &Text, std::string filename)
+void AAMsaveAllData(std::string dir, std::vector<AAM_ALL_DATA> &Data)
 {
-	// Eigen Vectors and Eigen Values
-	cv::Mat MeanVertices;
-	cv::FileStorage f;
-	f.open(filename, cv::FileStorage::READ);
+	int n = Data.size();
+	for(int i=0;i<n;i++){
+		std::string str = num2str(i);
+		std::string fname = dir + "/data" + str + ".yml";
+		saveAAMData(Data[i], fname);
+	}
 	
-	//Texture
-	f["F"] >> Text.F;
-	f["rows"] >> Text.textureSize.height;
-	f["cols"] >> Text.textureSize.width;
+}
+
+void AAMloadAllData(std::string dir, std::vector<AAM_ALL_DATA> &Data)
+{
+	int n = Data.size();
+	for(int i=0;i<n;i++){
+		std::string str = num2str(i);
+		std::string fname = dir + "/data" + str + ".yml";
+		loadAAMData(Data[i], fname);
+	}
+	
 }

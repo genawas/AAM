@@ -5,7 +5,6 @@
 #include "warp_triangle_double.h"
 #include "multiple_os_thread.h"
 
-
 double getintensity_mindex2(int x, int y, int sizx, int sizy, double *I) {
     //return I[y*sizx+x];
 	return I[x*sizy+y];

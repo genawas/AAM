@@ -20,15 +20,9 @@ struct AAMShape{
 	cv::Mat data;
 	cv::Mat varSc;
 	//std::vector<cv::Point2f> MeanVertices;
+	cv::Size textureSize;
 	cv::Mat MeanVertices;
 
-};
-
-struct AAMTexture{
-	//std::vector<cv::Vec3i> F; //delaunay
-	cv::Mat F;
-	//std::vector<cv::Point> Lines;
-	cv::Size textureSize;
 };
 
 struct AMM_Model2D_Options{
@@ -115,23 +109,23 @@ struct AAM_ALL_DATA{
 
 void writeMat( cv::Mat const& mat, const char* filename, const char* varName = "A", bool bgr2rgb = true);
 
-void AAM_MakeShapeModel2D_tire(AAMTrainingData &TrainingData, AAMShape &ShapeModel, 
-							   AAMTexture &Text, AMM_Model2D_Options &options);
+void AAM_MakeShapeModel2D_tire(AAMTrainingData &TrainingData, AAMShape &ShapeModel, AMM_Model2D_Options &options);
 
-void AAM_MakeAppearanceModel2D(AAMTrainingData &TrainingData, AAMTexture &Text, AAMShape &ShapeModel, 
-							   AAMAppearance &AppearanceData, AMM_Model2D_Options &options);
-
-void AAM_Weights2D_tire(AAMTrainingData &TrainingData, AAMShape &ShapeData, AAMAppearance &AppearanceData, 
-						AAMTexture &Text, cv::Mat &Ws, AMM_Model2D_Options &options);
+void AAM_MakeAppearanceModel2D(AAMTrainingData &TrainingData, AAMShape &ShapeModel, AAMAppearance &AppearanceData, cv::Mat &F, AMM_Model2D_Options &options);
 
 void AAM_NormalizeAppearance2D(cv::Mat &gim);
 
-void AAM_CombineShapeAppearance2D_tire(AAMTrainingData &TrainingData, AAM_ALL_DATA &Data, 
-									   AAMTexture &Text, AMM_Model2D_Options &options);
+void AAM_CombineShapeAppearance2D_tire(AAMTrainingData &TrainingData, AAM_ALL_DATA &Data, cv::Mat &F, AMM_Model2D_Options &options);
 
-void AAM_MakeSearchModel2D_tire(AAMTrainingData &TrainingData, AAM_ALL_DATA &Data, 
-								AAMTexture &Text, AMM_Model2D_Options &options);
+void AAM_MakeSearchModel2D_tire(AAMTrainingData &TrainingData, AAM_ALL_DATA &Data, cv::Mat &F, AMM_Model2D_Options &options);
 
-void ApplyModel2D(std::vector<AAM_ALL_DATA> &Data, AAMTexture &Text, cv::Mat &im, AAMTform &tformLarge, AMM_Model2D_Options &options);
+void ApplyModel2D(std::vector<AAM_ALL_DATA> &Data, cv::Mat &F, cv::Mat &im, AAMTform &tformLarge, cv::Mat &pos, AMM_Model2D_Options &options);
+
+void AAMtrainAllScales(std::string dir_shape, std::string dir_ims, std::vector<AAM_ALL_DATA> &Data, cv::Mat &F, AMM_Model2D_Options &options);
+
+void AAMloadAllData(std::string dir, std::vector<AAM_ALL_DATA> &Data);
+
+void AAMsaveAllData(std::string dir, std::vector<AAM_ALL_DATA> &Data);
+
 
 #endif
